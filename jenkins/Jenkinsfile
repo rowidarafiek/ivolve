@@ -1,11 +1,9 @@
 pipeline {
     agent any
-
     environment {
         IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_REGISTRY_FILE = "deployment.yaml"
     }
-
     stages {
         stage('Run Unit Tests') {
             steps {
@@ -13,21 +11,18 @@ pipeline {
                 sh 'mvn test'
             }
         }
-
         stage('Build the Application') {
             steps {
                 echo 'Building the application...'
                 sh 'mvn package'
             }
         }
-
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image...'
                 sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
             }
         }
-
         stage('Push Docker Image to Registry') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
@@ -39,21 +34,18 @@ pipeline {
                 }
             }
         }
-
         stage('Delete Docker Image') {
             steps {
                 echo 'Deleting Docker image...'
                 sh "docker rmi ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
-
         stage('Update Deployment deployment.yaml') {
             steps {
                 echo 'Updating deployment...'
                 sh "sed -i 's|image: .*|image: ${IMAGE_NAME}:${BUILD_NUMBER}|' ${DOCKER_REGISTRY_FILE}"
             }
         }
-
         stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([
@@ -65,9 +57,8 @@ pipeline {
                 }
             }
         }
-
+    }  // <- ADDED THIS CLOSING BRACE FOR 'stages'
       
-
     post {
         success {
             echo 'Pipeline completed successfully!'
