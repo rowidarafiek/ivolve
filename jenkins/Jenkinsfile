@@ -4,28 +4,62 @@ pipeline {
     environment {
         IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_REGISTRY_FILE = "deployment.yaml"
+        REPO_CACHE = "/tmp/ivolve-repo"
     }
     
     stages {
         stage('Prepare Workspace') {
             steps {
                 script {
-                    // Use rsync or cp to copy from a pre-cloned location
                     sh '''
-                        if [ ! -d "/tmp/ivolve-repo" ]; then
-                            echo "Cloning repo to /tmp (one-time operation)..."
+                        # Configure Git for slow connections
+                        git config --global http.version HTTP/1.1
+                        git config --global http.postBuffer 524288000
+                        git config --global http.lowSpeedLimit 0
+                        git config --global http.lowSpeedTime 999999
+                        
+                        # Check if cached repo exists
+                        if [ ! -d "${REPO_CACHE}/.git" ]; then
+                            echo "=== First time setup: Cloning repository to cache ==="
+                            mkdir -p /tmp
                             cd /tmp
-                            git clone --depth 1 https://github.com/rowidarafiek/ivolve.git ivolve-repo || exit 1
+                            rm -rf ivolve-repo
+                            
+                            # Clone with retry logic
+                            for i in 1 2 3 4 5; do
+                                echo "Clone attempt $i..."
+                                if git clone --depth 1 https://github.com/rowidarafiek/ivolve.git ivolve-repo; then
+                                    echo "Clone successful!"
+                                    break
+                                else
+                                    echo "Clone failed, retrying in 10 seconds..."
+                                    sleep 10
+                                    rm -rf ivolve-repo
+                                fi
+                            done
+                            
+                            if [ ! -d "${REPO_CACHE}/.git" ]; then
+                                echo "ERROR: Failed to clone repository after 5 attempts"
+                                exit 1
+                            fi
                         else
-                            echo "Updating existing repo..."
-                            cd /tmp/ivolve-repo
-                            git pull origin main || git fetch origin main
+                            echo "=== Updating cached repository ==="
+                            cd ${REPO_CACHE}
+                            git fetch origin main || echo "Fetch failed, using cached version"
+                            git reset --hard origin/main || git reset --hard HEAD
                         fi
                         
                         # Copy to workspace
+                        echo "=== Copying files to workspace ==="
                         rm -rf ${WORKSPACE}/*
-                        cp -r /tmp/ivolve-repo/* ${WORKSPACE}/
-                        ls -la ${WORKSPACE}
+                        rm -rf ${WORKSPACE}/.git
+                        cp -r ${REPO_CACHE}/* ${WORKSPACE}/ || exit 1
+                        cp -r ${REPO_CACHE}/.git ${WORKSPACE}/ || exit 1
+                        
+                        # Verify
+                        cd ${WORKSPACE}
+                        ls -la
+                        echo "Workspace prepared successfully!"
                     '''
                 }
             }
