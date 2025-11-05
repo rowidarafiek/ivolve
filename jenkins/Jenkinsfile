@@ -1,28 +1,52 @@
 pipeline {
     agent any
+    
+    options {
+        skipDefaultCheckout()  // We'll do manual checkout
+    }
+    
     environment {
         IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_REGISTRY_FILE = "deployment.yaml"
     }
+    
     stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/main']],
+                        extensions: [
+                            [$class: 'CloneOption', depth: 1, noTags: false, shallow: true]
+                        ],
+                        userRemoteConfigs: [[url: 'https://github.com/rowidarafiek/ivolve.git']]
+                    ])
+                }
+            }
+        }
+        
         stage('Run Unit Tests') {
             steps {
                 echo 'Running unit tests...'
                 sh 'mvn test'
             }
         }
+        
         stage('Build the Application') {
             steps {
                 echo 'Building the application...'
                 sh 'mvn package'
             }
         }
+        
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image...'
                 sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
             }
         }
+        
         stage('Push Docker Image to Registry') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
@@ -34,18 +58,21 @@ pipeline {
                 }
             }
         }
+        
         stage('Delete Docker Image') {
             steps {
                 echo 'Deleting Docker image...'
                 sh "docker rmi ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
+        
         stage('Update Deployment deployment.yaml') {
             steps {
                 echo 'Updating deployment...'
                 sh "sed -i 's|image: .*|image: ${IMAGE_NAME}:${BUILD_NUMBER}|' ${DOCKER_REGISTRY_FILE}"
             }
         }
+        
         stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([
@@ -57,8 +84,8 @@ pipeline {
                 }
             }
         }
-    }  // <- ADDED THIS CLOSING BRACE FOR 'stages'
-      
+    }
+    
     post {
         success {
             echo 'Pipeline completed successfully!'
@@ -69,8 +96,7 @@ pipeline {
             echo 'Check console output for errors.'
         }
         always {
-            echo 'Cleaning up workspace...'
-            cleanWs()
+            echo 'Pipeline finished.'
         }
     }
 }
