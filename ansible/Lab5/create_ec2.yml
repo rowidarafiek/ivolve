@@ -1,0 +1,18 @@
+- name: Create EC2 instance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Launch EC2
+      amazon.aws.ec2_instance:
+        name: ivolve
+        key_name: my-key
+        instance_type: t2.micro
+        image_id: ami-0c55b159cbfafe1f0
+        region: us-east-1
+        count: 1
+        wait: true
+        tags:
+          Name: ivolve
+

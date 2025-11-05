@@ -1,0 +1,12 @@
+---
+- name: Verify EC2 connection
+  hosts: all
+  remote_user: ubuntu
+  tasks:
+    - name: Show hostname
+      command: hostname
+      register: result
+
+    - debug:
+        var: result.stdout
+
