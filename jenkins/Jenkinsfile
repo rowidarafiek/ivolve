@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        IMAGE_NAME = 'rowidarafiek/app'
+        IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_REGISTRY_FILE = "deployment.yaml"
     }
     
