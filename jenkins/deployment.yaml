@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: app-container
-        image: saeedgebaly/app
+        image: rowidarafiek/frontend
         ports:
         - containerPort: 8080
         imagePullPolicy: Always
