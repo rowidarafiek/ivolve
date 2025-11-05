@@ -1,12 +1,47 @@
 pipeline {
     agent any
     
+    options {
+        // Increase overall pipeline timeout
+        timeout(time: 1, unit: 'HOURS')
+        
+        // Skip default checkout to use custom checkout with timeout
+        skipDefaultCheckout(true)
+    }
+    
     environment {
         IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_REGISTRY_FILE = "deployment.yaml"
     }
     
     stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    echo 'Checking out code from Git...'
+                    retry(3) {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: '*/main']], // or '*/master' depending on your branch
+                            extensions: [
+                                [$class: 'CloneOption', 
+                                 timeout: 30, 
+                                 depth: 1, 
+                                 shallow: true,
+                                 noTags: true
+                                ],
+                                [$class: 'CheckoutOption', timeout: 30]
+                            ],
+                            userRemoteConfigs: [[
+                                url: 'https://github.com/rowidarafiek/ivolve.git',
+                                credentialsId: '432eb3d0-0f3e-496a-83c2-86ca46fee95e'
+                            ]]
+                        ])
+                    }
+                }
+            }
+        }
+        
         stage('Run Unit Tests') {
             steps {
                 echo 'Running unit tests...'
@@ -33,8 +68,9 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
                     echo 'Pushing Docker image to registry...'
                     sh '''
-                        docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
                         docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                        docker logout
                     '''
                 }
             }
@@ -43,14 +79,15 @@ pipeline {
         stage('Delete Docker Image') {
             steps {
                 echo 'Deleting Docker image...'
-                sh "docker rmi ${IMAGE_NAME}:${BUILD_NUMBER}"
+                sh "docker rmi ${IMAGE_NAME}:${BUILD_NUMBER} || true"
             }
         }
         
-        stage('Update Deployment deployment.yaml') {
+        stage('Update Deployment YAML') {
             steps {
-                echo 'Updating deployment...'
+                echo 'Updating deployment.yaml...'
                 sh "sed -i 's|image: .*|image: ${IMAGE_NAME}:${BUILD_NUMBER}|' ${DOCKER_REGISTRY_FILE}"
+                sh "cat ${DOCKER_REGISTRY_FILE}"
             }
         }
         
@@ -61,7 +98,12 @@ pipeline {
                     string(credentialsId: 'api-cred', variable: 'APISERVER')
                 ]) {
                     echo 'Deploying to Kubernetes...'
-                    sh "kubectl apply -f deployment.yaml --server \"${APISERVER}\" --token \"${TOKEN}\" --insecure-skip-tls-verify=true"
+                    sh """
+                        kubectl apply -f deployment.yaml \
+                            --server=\"${APISERVER}\" \
+                            --token=\"${TOKEN}\" \
+                            --insecure-skip-tls-verify=true
+                    """
                 }
             }
         }
@@ -73,8 +115,18 @@ pipeline {
                     string(credentialsId: 'api-cred', variable: 'APISERVER')
                 ]) {
                     echo 'Verifying deployment...'
-                    sh "kubectl get pods -n ivolve --server \"${APISERVER}\" --token \"${TOKEN}\" --insecure-skip-tls-verify=true"
-                    sh "kubectl get services -n ivolve --server \"${APISERVER}\" --token \"${TOKEN}\" --insecure-skip-tls-verify=true"
+                    sh """
+                        kubectl get pods -n ivolve \
+                            --server=\"${APISERVER}\" \
+                            --token=\"${TOKEN}\" \
+                            --insecure-skip-tls-verify=true
+                    """
+                    sh """
+                        kubectl get services -n ivolve \
+                            --server=\"${APISERVER}\" \
+                            --token=\"${TOKEN}\" \
+                            --insecure-skip-tls-verify=true
+                    """
                 }
             }
         }
@@ -90,8 +142,10 @@ pipeline {
             echo 'Check console output for errors.'
         }
         always {
-            echo 'Cleaning up workspace...'
-            cleanWs()
+            script {
+                echo 'Cleaning up workspace...'
+                cleanWs()
+            }
         }
     }
 }
