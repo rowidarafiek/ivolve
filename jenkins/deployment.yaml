@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: app-container
-        image: rowidarafiek/app
+        image: rowidarafiek/frontend:v2
         ports:
         - containerPort: 8080
         imagePullPolicy: Always
