@@ -4,18 +4,18 @@ pipeline {
     environment {
         // Docker Hub credentials
         DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred')
-        DOCKER_IMAGE_NAME = 'rowidarafiek/frontend:v2'
+        DOCKER_IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
         
         // GitHub credentials
         GIT_CREDENTIALS = 'github-cred'
         
         // Kubernetes credentials
-        K8S_API_SERVER = credentials('apicred')
+        K8S_API_SERVER = credentials('api-cred')
         K8S_SERVICE_ACCOUNT = credentials('sa-cred')
         
         // Application settings
-        GIT_REPO = 'https://github.com/Ibrahim-Adel15/Jenkins_App.git'
+    
         K8S_NAMESPACE = 'default'
     }
     
