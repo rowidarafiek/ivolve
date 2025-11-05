@@ -1,27 +1,32 @@
 pipeline {
     agent any
     
-    options {
-        skipDefaultCheckout()  // We'll do manual checkout
-    }
-    
     environment {
         IMAGE_NAME = 'rowidarafiek/frontend'
         DOCKER_REGISTRY_FILE = "deployment.yaml"
     }
     
     stages {
-        stage('Checkout') {
+        stage('Prepare Workspace') {
             steps {
                 script {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: '*/main']],
-                        extensions: [
-                            [$class: 'CloneOption', depth: 1, noTags: false, shallow: true]
-                        ],
-                        userRemoteConfigs: [[url: 'https://github.com/rowidarafiek/ivolve.git']]
-                    ])
+                    // Use rsync or cp to copy from a pre-cloned location
+                    sh '''
+                        if [ ! -d "/tmp/ivolve-repo" ]; then
+                            echo "Cloning repo to /tmp (one-time operation)..."
+                            cd /tmp
+                            git clone --depth 1 https://github.com/rowidarafiek/ivolve.git ivolve-repo || exit 1
+                        else
+                            echo "Updating existing repo..."
+                            cd /tmp/ivolve-repo
+                            git pull origin main || git fetch origin main
+                        fi
+                        
+                        # Copy to workspace
+                        rm -rf ${WORKSPACE}/*
+                        cp -r /tmp/ivolve-repo/* ${WORKSPACE}/
+                        ls -la ${WORKSPACE}
+                    '''
                 }
             }
         }
